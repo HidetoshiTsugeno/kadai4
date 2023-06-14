@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <title>骨粗鬆症診断アプリ</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+      }
+
+      .frax-info {
+        margin-top: 15px;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+
+      .frax-info a {
+        display: block;
+        margin-top: 10px;
+      }
+
+      .collapse {
+        display: none;
+      }
+
+      .collapse.show {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>骨粗鬆症診断アプリ</h1>
+
+    <div class="card mt-4">
+      <div class="card-header">診断フォーム</div>
+      <div class="card-body">
+        <div class="form-group">
+          <label for="idInput">患者ID:</label>
+          <input type="text" class="form-control" id="idInput">
+        </div>
+
+        <div class="form-group">
+          <label for="nameInput">名前:</label>
+          <input type="text" class="form-control" id="nameInput">
+        </div>
+
+        <div class="form-group">
+          <label>年齢:</label>
+          <input type="text" class="form-control" id="ageInput">
+        </div>
+
+        <div class="form-group">
+          <label>性別:</label>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="gender" id="female" value="female">
+            <label class="form-check-label" for="female">女性</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="gender" id="male" value="male">
+            <label class="form-check-label" for="male">男性</label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>脆弱性骨折の既往がありますか？</label>
+          <input type="radio" name="fracture" value="yes">はい
+          <input type="radio" name="fracture" value="no">いいえ
+        </div>
+
+        <div class="form-group">
+          <label>FRAXスコア:</label>
+          <input type="radio" name="frax" value="high">高い
+          <input type="radio" name="frax" value="moderate">中程度
+          <input type="radio" name="frax" value="low">低い
+          <span class="info-icon" id="fraxInfoButton">&#9432;</span>
+        </div>
+
+
+            <div class="form-group">
+                <label>大腿骨近位部（YAM）のTスコア:</label>
+                <input type="radio" name="tScore" value="lessThanNeg2.5">-2.5未満
+                <input type="radio" name="tScore" value="greaterThanOrEqualToNeg2.5">-2.5以上
+              </div>
+      
+              <div class="form-group">
+                <label>骨代謝異常の疑いがありますか？</label>
+                <input type="radio" name="metabolicAbnormality" value="yes">はい
+                <input type="radio" name="metabolicAbnormality" value="no">いいえ
+              </div>
+      
+              <div class="form-group">
+                <button class="btn btn-primary" onclick="saveData()">保存する</button>
+                <button class="btn btn-danger" onclick="clearData()">データを削除する</button>
+                <button class="btn btn-secondary" onclick="clearAllData()">全データを削除する</button>
+                <button class="btn btn-success" onclick="diagnose()">診断する</button>
+              </div>
+      
+              <div id="fraxInfo" class="frax-info collapse">
+                <p>FRAXスコアは、10年間の骨折リスクを評価するツールです。</p>
+                <p>高いスコアは骨折リスクが高いことを示しています。</p>
+                <a href="https://frax.shef.ac.uk/FRAX/tool.aspx?lang=jp" target="_blank">FRAXの詳細</a>
+              </div>
+      
+            </div>
+          </div>
+      
+          <!-- Old Diagnosis Result Area -->
+          <div class="card mt-4">
+            <div class="card-header">診断結果:</div>
+            <div class="card-body">
+              <p id="resultText">&nbsp;</p>
+            </div>
+          </div>
+      
+<!-- New Diagnosis History Area -->
+<div class="card mt-4">
+    <div class="card-header">診断履歴:</div>
+    <div class="card-body">
+      <div id="history-container">
+        <table id="history-table" class="table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>名前</th>
+              <th>年齢</th>
+              <th>性別</th>
+              <th>脆弱性骨折の既往</th>
+              <th>Tスコア</th>
+              <th>診断結果</th>
+            </tr>
+          </thead>
+          <tbody id="history-body">
+            <!-- History entries will be inserted here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+        </body>
+      
+        <script>
+          // Input elements
+          var patientIdInput = document.getElementById("idInput");
+          var nameInput = document.getElementById("nameInput");
+          var ageInput = document.getElementById("ageInput");
+          var genderInputs = document.getElementsByName("gender");
+    var fractureInputs = document.getElementsByName("fracture");
+    var fraxInputs = document.getElementsByName("frax");
+    var tScoreInputs = document.getElementsByName("tScore");
+    var metabolicAbnormalityInputs = document.getElementsByName("metabolicAbnormality");
+
+    // Other elements
+    var resultText = document.getElementById("resultText");
+    var fraxInfoButton = document.getElementById("fraxInfoButton");
+    var historyContainer = document.getElementById("history-container");
+
+    // Load patient data from localStorage on page load
+    window.onload = function() {
+      var patientData = JSON.parse(localStorage.getItem("patientData")) || {};
+      patientIdInput.value = patientData.id || "";
+      nameInput.value = patientData.name || "";
+      ageInput.value = patientData.age || "";
+      checkRadioInputs(genderInputs, patientData.gender);
+      checkRadioInputs(fractureInputs, patientData.fracture);
+      checkRadioInputs(fraxInputs, patientData.frax);
+      checkRadioInputs(tScoreInputs, patientData.tScore);
+      checkRadioInputs(metabolicAbnormalityInputs, patientData.metabolicAbnormality);
+
+      // Load diagnosis history
+      var diagnosisHistory = JSON.parse(localStorage.getItem("diagnosisHistory")) || [];
+      diagnosisHistory.forEach(function(historyEntry) {
+        historyContainer.innerHTML += createHistoryEntryHTML(historyEntry);
+      });
+    };
+
+    // Check radio inputs based on saved value
+    function checkRadioInputs(inputs, value) {
+      for (var i = 0; i < inputs.length; i++) {
+        if (inputs[i].value === value) {
+          inputs[i].checked = true;
+        }
+      }
+    }
+
+    // Save data function
+    function saveData() {
+      var patientData = {
+        id: patientIdInput.value,
+        name: nameInput.value,
+        age: ageInput.value,
+        gender: getCheckedValue(genderInputs),
+        fracture: getCheckedValue(fractureInputs),
+        frax: getCheckedValue(fraxInputs),
+        tScore: getCheckedValue(tScoreInputs),
+        metabolicAbnormality: getCheckedValue(metabolicAbnormalityInputs)
+      };
+
+      localStorage.setItem("patientData", JSON.stringify(patientData));
+      alert("データが保存されました。");
+    }
+
+    // Get checked radio input value
+    function getCheckedValue(inputs) {
+      for (var i = 0; i < inputs.length; i++) {
+        if (inputs[i].checked) {
+          return inputs[i].value;
+        }
+      }
+      return "";
+    }
+
+    // Clear data function
+    function clearData() {
+      localStorage.clear();
+      patientIdInput.value = "";
+      nameInput.value = "";
+      ageInput.value = "";
+      uncheckRadioInputs(genderInputs);
+      uncheckRadioInputs(fractureInputs);
+      uncheckRadioInputs(fraxInputs);
+      uncheckRadioInputs(tScoreInputs);
+      uncheckRadioInputs(metabolicAbnormalityInputs);
+      resultText.innerHTML = "";
+      alert("データが削除されました。");
+    }
+
+    // Uncheck all radio inputs
+    function uncheckRadioInputs(inputs) {
+      for (var i = 0; i < inputs.length; i++) {
+        inputs[i].checked = false;
+      }
+    }
+
+    // Diagnose function
+    function diagnose() {
+      // Get user input values
+      var patientId
+
+            // Get user input values
+            var patientId = patientIdInput.value;
+      var name = nameInput.value;
+      var age = ageInput.value;
+      var tScore = getCheckedValue(tScoreInputs);
+
+      // Ensure all questions are answered
+      var gender = document.querySelector('input[name="gender"]:checked');
+      var fracture = document.querySelector('input[name="fracture"]:checked');
+      var frax = document.querySelector('input[name="frax"]:checked');
+      var metabolicAbnormality = document.querySelector('input[name="metabolicAbnormality"]:checked');
+
+      if (!gender || !fracture || !frax || !tScore || !metabolicAbnormality) {
+        resultText.innerHTML = "全ての情報を選択してください。";
+        return;
+      }
+
+      // Apply diagnosis rules
+      var diagnosisResult = "";  // 診断結果のテキストを格納する変数を空の文字列で初期化
+
+      if (gender.value === "female" && fracture.value === "yes") {
+        diagnosisResult = "薬物治療の開始が推奨されます。";
+      } else if (frax.value === "high" || tScore.value === "lessThanNeg2.5" || metabolicAbnormality.value === "yes") {
+        diagnosisResult = "薬物治療の検討が必要です。";
+      } else {
+        diagnosisResult = "薬物治療は現時点では推奨されません。";
+      }
+
+      resultText.textContent = diagnosisResult;  // 診断結果を表示
+
+      // Create history entry HTML
+      var historyEntry = {
+        patientId: patientId,
+        name: name,
+        age: age,
+        tScore: tScore,
+        result: diagnosisResult
+      };
+      historyContainer.innerHTML += createHistoryEntryHTML(historyEntry);
+
+      // Clear input values
+      patientIdInput.value = "";
+      nameInput.value = "";
+      ageInput.value = "";
+      uncheckRadioInputs(genderInputs);
+      uncheckRadioInputs(fractureInputs);
+      uncheckRadioInputs(fraxInputs);
+      uncheckRadioInputs(tScoreInputs);
+      uncheckRadioInputs(metabolicAbnormalityInputs);
+    }
+
+    // Save diagnosis history
+    function saveHistory() {
+      var historyEntries = [];
+      var historyEntryElements = historyContainer.getElementsByClassName("history-entry");
+      for (var i = 0; i < historyEntryElements.length; i++) {
+        var historyEntryElement = historyEntryElements[i];
+        var historyEntry = {
+          patientId: historyEntryElement.getElementsByClassName("patient-id")[0].textContent,
+          name: historyEntryElement.getElementsByClassName("patient-name")[0].textContent,
+          age: historyEntryElement.getElementsByClassName("patient-age")[0].textContent,
+          gender: historyEntryElement.getElementsByClassName("patient-gender")[0].textContent,
+          fracture: historyEntryElement.getElementsByClassName("patient-fracture")[0].textContent,
+          tScore: historyEntryElement.getElementsByClassName("patient-t-score")[0].textContent,
+          result: historyEntryElement.getElementsByClassName("patient-result")[0].textContent
+        };
+        historyEntries.push(historyEntry);
+      }
+      localStorage.setItem("diagnosisHistory", JSON.stringify(historyEntries));
+      alert("診断履歴が保存されました。");
+    }
+
+    // Create history entry HTML from history entry object
+    function createHistoryEntryHTML(historyEntry) {
+    return `
+      <tr class="history-entry">
+        <td>${historyEntry.patientId}</td>
+        <td>${historyEntry.name}</td>
+        <td>${historyEntry.age}</td>
+        <td>${historyEntry.gender}</td>
+        <td>${historyEntry.fracture}</td>
+        <td>${historyEntry.tScore}</td>
+        <td>${historyEntry.result}</td>
+      </tr>
+    `;
+  }
+
+  // Update diagnosis history table
+  function updateHistoryTable() {
+    var tableBody = document.getElementById("history-body");
+    tableBody.innerHTML = "";  // Clear current table
+    for (var i = 0; i < diagnosisHistory.length; i++) {
+      var historyEntry = diagnosisHistory[i];
+      var historyEntryHTML = createHistoryEntryHTML(historyEntry);
+      tableBody.innerHTML += historyEntryHTML;
+    }
+  }
+
+    // Clear all data function
+    function clearAllData() {
+      localStorage.clear();
+      patientIdInput.value = "";
+      nameInput.value = "";
+      ageInput.value = "";
+      uncheckRadioInputs(genderInputs);
+      uncheckRadioInputs(fractureInputs);
+      uncheckRadioInputs(fraxInputs);
+      uncheckRadioInputs(tScoreInputs);
+      uncheckRadioInputs(metabolicAbnormalityInputs);
+      resultText.innerHTML = "";
+      historyContainer.innerHTML = "";
+      alert("すべてのデータが削除されました。");
+    }
+
+    // If the "FRAX score info" button is clicked, toggle the visibility of the FRAX info box
+    fraxInfoButton.onclick = function() {
+      var fraxInfo = document.getElementById("fraxInfo");
+      if (fraxInfo.style.display === "none") {
+        fraxInfo.style.display = "block";
+      } else {
+        fraxInfo.style.display = "none";
+      }
+    };
+  </script>
+</html>
+
+
+      
